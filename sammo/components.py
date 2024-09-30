@@ -102,6 +102,8 @@ class GenerateText(Component):
             else:
                 runner_for_generation = runner
 
+            # print(y.value)
+            # raise ValueError("Test")
             result = await runner_for_generation.generate_text(
                 y.value,
                 priority=priority,

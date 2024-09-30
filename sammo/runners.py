@@ -220,7 +220,6 @@ class BaseRunner(Runner):
     def _purge_none_values(d: dict):
         return {k: v for k, v in d.items() if v is not None}
 
-
 class RestRunner(BaseRunner):
     async def _call_backend(self, request: dict) -> dict:
         try:
@@ -330,6 +329,47 @@ class OpenAIChat(OpenAIBaseRunner):
             output_costs=json_data["usage"].get("completion_tokens", 0),
         )
 
+from openai import OpenAI
+
+class Vllm(OpenAIChat):
+    BASE_URL = "http://localhost:8000/v1"
+    SUFFIX = ""
+
+    def _post_init(self):
+        self.client = OpenAI(
+        base_url="http://localhost:8000/v1",
+        api_key="Mixtral",
+        )
+
+    async def _call_backend(self, request: dict) -> dict:
+        messages = request.get("messages", [])
+        
+        print(messages)
+        response = self.client.chat.completions.create(
+            model="/home/aiscuser/Mixtral-8x7B-v0.1",
+            messages=messages,
+            max_tokens = 10,
+            stop = None,
+            temperature=0,
+        )
+
+        response = response.model_dump_json()
+        response = json.loads(response)
+        print(response)
+        # raise ValueError("Test")
+        return response
+       
+        # try:
+
+        # except ClientConnectorError as exc:
+        #     # ClientConnectorError is raised when there is a (possibly) transient transport-layer connection issue.
+        #     # We handle this error by waiting a short period of time (to allow the TCP state machine to reach a
+        #     # consistent state), then raising a RetriableError so that the request is retried. We wrap the
+        #     # session rather than the POST call so that a new connection is created rather than re-using one from the
+        #     # underlying pool.
+        #     # see https://github.com/microsoft/sammo/issues/49
+        #     await asyncio.sleep(0.25)
+        #     raise RetriableError(f"Client/server connection error: {exc!s}")
 
 class AzureMixIn:
     """Mix-in class for Azure API runners.
