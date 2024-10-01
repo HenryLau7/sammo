@@ -11,7 +11,7 @@ from sammo.mutators import (
     APO,
     Paraphrase,
 )
-from sammo.runners import OpenAIChat, Vllm
+from sammo.runners import OpenAIChat, Vllm, AzureGPT4
 from sammo.throttler import AtMost
 
 logger = sammo.setup_logger(log_prompts_to_file=True)
@@ -67,6 +67,16 @@ MODEL_CONFIGS = {
         "credentials": {
             "api_key": "Mixtral",
 
+        },
+        "rate_limit": 10,
+        "timeout": 90,
+        "max_context_window": None,
+    },
+    "AzureGPT4":{
+        "full_id": "AzureGPT4",
+        "equivalence_class": "AzureOpenAI",
+        "credentials": {
+            "api_key": "AzureOpenAI",
         },
         "rate_limit": 10,
         "timeout": 90,
@@ -133,7 +143,6 @@ class InstructionTuningSearchSpace:
                     id="instructions",
                 ),
                 Paragraph("\n"),
-                # TODO: output format 需要适配其他的task
                 Paragraph(f"Output Format:\nAnswer {' or '.join(labels)} as labels\n" if len(labels) <= 10 else ""),
                 Paragraph("Examples:\n"),
                 Paragraph(FewshotExamples(self.dincontext[0])),
@@ -164,7 +173,18 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
     model_config = MODEL_CONFIGS[llm]
     run_id = f"{task_id}_{model_config['equivalence_class'].replace('/', '_')}"
 
-    runner = Vllm(
+    # runner = Vllm(
+    #     model_id=model_config["full_id"],
+    #     api_config=model_config["credentials"],
+    #     equivalence_class=model_config["equivalence_class"],
+    #     rate_limit=model_config["rate_limit"],
+    #     cache=sammo.store.PersistentDict(MAIN_FOLDER / f"{run_id}.cache.tsv"),
+    #     timeout=model_config["timeout"],
+    #     max_retries=50000,
+    #     max_context_window=model_config["max_context_window"],
+    # )
+
+    runner =AzureGPT4(
         model_id=model_config["full_id"],
         api_config=model_config["credentials"],
         equivalence_class=model_config["equivalence_class"],
@@ -175,10 +195,6 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
         max_context_window=model_config["max_context_window"],
     )
 
-    if llm == "vllm":
-        runner.BASE_URL = "http://localhost:8000/v1"
-        runner.SUFFIX = ""
-
     all_tasks = {x["task_id"]: x for x in orjson.loads(pathlib.Path(DATA).read_bytes())}
     task = all_tasks[task_id]
 
@@ -188,90 +204,90 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
             data[k] = DataTable.from_records(v, constants=dict(instructions=task["instructions"]))
 
     search_space = InstructionTuningSearchSpace(data["d_train"], data["d_incontext"])
-    baseline_performance = EnumerativeSearch(runner, search_space, accuracy, max_candidates=1)
-    baseline_performance.fit_transform(data["d_train"])
-    baseline_performance.transform(data["d_test"])
-    baseline_performance.show_report()
-    baseline_performance.save_json(MAIN_FOLDER / "baseline" / f"{run_id}.model.json")
+    # baseline_performance = EnumerativeSearch(runner, search_space, accuracy, max_candidates=1)
+    # baseline_performance.fit_transform(data["d_train"])
+    # baseline_performance.transform(data["d_test"])
+    # baseline_performance.show_report()
+    # baseline_performance.save_json(MAIN_FOLDER / "baseline" / f"{run_id}.model.json")
 
-    # if method == "ape":
-    #     prompt_optimizer = BeamSearch(
-    #         runner,
-    #         APE({"id": "instructions"}, search_space, data["d_train"], 5),
-    #         accuracy,
-    #         maximize=True,
-    #         n_initial_candidates=12,
-    #         depth=3,
-    #         mutations_per_beam=2,
-    #         beam_width=4,
-    #         add_previous=True,
-    #     )
-    # elif method == "apo":
-    #     prompt_optimizer = BeamSearch(
-    #         runner,
-    #         APO(
-    #             {"id": "instructions", "_child": "content"},
-    #             search_space,
-    #             num_gradients=2,
-    #             steps_per_gradient=1,
-    #             num_rewrites=1,
-    #         ),
-    #         accuracy,
-    #         maximize=True,
-    #         depth=7,
-    #         mutations_per_beam=2,
-    #         beam_width=4,
-    #         add_previous=True,
-    #     )
-    # elif method == "grips":
-    #     mutation_operators = SyntaxTreeMutator(
-    #         {"id": "instructions"},
-    #         search_space,
-    #         PersistentDict(MAIN_FOLDER / "trees" / f"{run_id}.cache.json"),
-    #     )
-    #     prompt_optimizer = BeamSearch(
-    #         runner,
-    #         mutation_operators,
-    #         accuracy,
-    #         maximize=True,
-    #         depth=7,
-    #         mutations_per_beam=2,
-    #         n_initial_candidates=1,
-    #         beam_width=4,
-    #         add_previous=True,
-    #     )
-    # elif method == "sammo":
-    #     mutation_operators = BagOfMutators(
-    #         search_space,
-    #         InduceInstructions({"id": "instructions"}, data["d_incontext"]),
-    #         APO(
-    #             {"id": "instructions", "_child": "content"},
-    #             None,
-    #             num_gradients=2,
-    #             steps_per_gradient=1,
-    #             num_rewrites=0,
-    #         ),
-    #         Paraphrase({"id": "instructions"}),
-    #         sample_for_init_candidates=True,
-    #     )
-    #     prompt_optimizer = BeamSearch(
-    #         runner,
-    #         mutation_operators,
-    #         accuracy,
-    #         maximize=True,
-    #         depth=4,
-    #         mutations_per_beam=2,
-    #         n_initial_candidates=4,
-    #         beam_width=4,
-    #         add_previous=True,
-    #     )
-    # prompt_optimizer.fit(data["d_train"])
-    # prompt_optimizer.show_report()
+    if method == "ape":
+        prompt_optimizer = BeamSearch(
+            runner,
+            APE({"id": "instructions"}, search_space, data["d_train"], 5),
+            accuracy,
+            maximize=True,
+            n_initial_candidates=12,
+            depth=3,
+            mutations_per_beam=2,
+            beam_width=4,
+            add_previous=True,
+        )
+    elif method == "apo":
+        prompt_optimizer = BeamSearch(
+            runner,
+            APO(
+                {"id": "instructions", "_child": "content"},
+                search_space,
+                num_gradients=2,
+                steps_per_gradient=1,
+                num_rewrites=1,
+            ),
+            accuracy,
+            maximize=True,
+            depth=7,
+            mutations_per_beam=2,
+            beam_width=4,
+            add_previous=True,
+        )
+    elif method == "grips":
+        mutation_operators = SyntaxTreeMutator(
+            {"id": "instructions"},
+            search_space,
+            PersistentDict(MAIN_FOLDER / "trees" / f"{run_id}.cache.json"),
+        )
+        prompt_optimizer = BeamSearch(
+            runner,
+            mutation_operators,
+            accuracy,
+            maximize=True,
+            depth=7,
+            mutations_per_beam=2,
+            n_initial_candidates=1,
+            beam_width=4,
+            add_previous=True,
+        )
+    elif method == "sammo":
+        mutation_operators = BagOfMutators(
+            search_space,
+            InduceInstructions({"id": "instructions"}, data["d_incontext"]),
+            APO(
+                {"id": "instructions", "_child": "content"},
+                None,
+                num_gradients=2,
+                steps_per_gradient=1,
+                num_rewrites=0,
+            ),
+            Paraphrase({"id": "instructions"}),
+            sample_for_init_candidates=True,
+        )
+        prompt_optimizer = BeamSearch(
+            runner,
+            mutation_operators,
+            accuracy,
+            maximize=True,
+            depth=4,
+            mutations_per_beam=2,
+            n_initial_candidates=4,
+            beam_width=4,
+            add_previous=True,
+        )
+    prompt_optimizer.fit(data["d_train"])
+    prompt_optimizer.show_report()
 
-    # if not debug:
-    #     dtest_pred = prompt_optimizer.transform(data["d_test"])
-    #     print(f"Test score: {accuracy(data['d_test'], dtest_pred)}")
-    # prompt_optimizer.save_json(MAIN_FOLDER / method / f"{run_id}.model.json")
+    if not debug:
+        dtest_pred = prompt_optimizer.transform(data["d_test"])
+        print(f"Test score: {accuracy(data['d_test'], dtest_pred)}")
+    prompt_optimizer.save_json(MAIN_FOLDER / method / f"{run_id}.model.json")
 
 
 if __name__ == "__main__":

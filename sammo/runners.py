@@ -329,7 +329,48 @@ class OpenAIChat(OpenAIBaseRunner):
             output_costs=json_data["usage"].get("completion_tokens", 0),
         )
 
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
+
+
+class AzureGPT4(OpenAIChat):
+
+    def _post_init(self):
+        endpoint = os.environ.get('AZURE_OPENAI_ENDPOINT', '')
+        assert endpoint, "Please set the environment variable AZURE_OPENAI_ENDPOINT"
+        api_key = os.environ.get('AZURE_OPENAI_API_KEY', '')
+        assert api_key, "Please set the environment variable AZURE_OPENAI_API_KEY"
+
+        self.client = AzureOpenAI(
+            azure_endpoint = os.environ.get('AZURE_OPENAI_ENDPOINT', ''),
+            api_key = os.environ.get('AZURE_OPENAI_API_KEY', ''),
+            api_version = "2024-05-01-preview",
+        )
+
+    async def _call_backend(self, request: dict) -> dict:
+        messages = request.get("messages", [])
+        response = self.client.chat.completions.create(
+            model="gpt-4",
+            messages=messages,
+            max_tokens = 256,
+            stop = None,
+            temperature=0,
+        )
+
+        response = response.model_dump_json()
+        response = json.loads(response)
+        return response
+       
+        # try:
+
+        # except ClientConnectorError as exc:
+        #     # ClientConnectorError is raised when there is a (possibly) transient transport-layer connection issue.
+        #     # We handle this error by waiting a short period of time (to allow the TCP state machine to reach a
+        #     # consistent state), then raising a RetriableError so that the request is retried. We wrap the
+        #     # session rather than the POST call so that a new connection is created rather than re-using one from the
+        #     # underlying pool.
+        #     # see https://github.com/microsoft/sammo/issues/49
+        #     await asyncio.sleep(0.25)
+        #     raise RetriableError(f"Client/server connection error: {exc!s}")
 
 class Vllm(OpenAIChat):
     BASE_URL = "http://localhost:8000/v1"
