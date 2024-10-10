@@ -160,7 +160,6 @@ class InstructionTuningSearchSpace:
             on_error="empty_result",
         )
 
-
 @click.command()
 @click.option("--llm", default=MODELS[0], type=click.Choice(MODELS), prompt=True)
 @click.option("--task-id", default=TASKS[0], type=click.Choice(TASKS), prompt=True)
@@ -234,9 +233,9 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
             ),
             accuracy,
             maximize=True,
-            depth=7,
-            mutations_per_beam=2,
-            beam_width=4,
+            depth=5,
+            mutations_per_beam=100,
+            beam_width=8,
             add_previous=True,
         )
     elif method == "grips":
@@ -281,7 +280,10 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
             beam_width=4,
             add_previous=True,
         )
+
     prompt_optimizer.fit(data["d_train"])
+    import pdb; pdb.set_trace()
+
     prompt_optimizer.show_report()
 
     if not debug:

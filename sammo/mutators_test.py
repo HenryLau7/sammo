@@ -94,21 +94,42 @@ async def test_replace_param():
     result = await mutator.mutate(basic_template(), MagicMock(), runner, n_mutations=2, random_state=42)
     assert len(result) == 1
 
+# @pytest.mark.asyncio
+# async def test_apo(n_data=5, num_gradients=2):
+#     runner = MockedRunner(
+#         ["".join([f"<START>Reason {i}</START>" for i in range(num_gradients)])]
+#         + [f"<START>Improved Prompt {i}</START>" for i in range(num_gradients)]
+#     )
+#     datatable = DataTable.from_records([{"input": "_a_", "output": "_b_"}] * n_data)
+#     mutator = APO({"name": "test", "_child": "content"}, None, num_gradients=2, steps_per_gradient=1, num_rewrites=1)
+#     mutator.objective = MagicMock()
+#     mutator.objective.return_value = MagicMock(mistakes=list(range(n_data)))
+#     result = await mutator.mutate(basic_template(), datatable, runner, n_mutations=2, random_state=42)
+#     assert result[0].candidate.query({"name": "test", "_child": "content"}) == "Improved Prompt 0"
+#     assert result[1].candidate.query({"name": "test", "_child": "content"}) == "<START>Improved Prompt 0</START>"
+#     assert len(result) == 2
 
 @pytest.mark.asyncio
 async def test_apo(n_data=5, num_gradients=2):
     runner = MockedRunner(
-        ["".join([f"<START>Reason {i}</START>" for i in range(num_gradients)])]
-        + [f"<START>Improved Prompt {i}</START>" for i in range(num_gradients)]
+        {
+            "semantic.*1": "Rewritten Improved 1",
+            "semantic.*2": "Rewritten Improved 2",
+            "reason 1.*improved": "<START>Improved 1</START>",
+            "reason 2.*improved": "<START>Improved 2</START>",
+            "reasons": "<START>reason 1</START><START>reason 2</START>",
+        }
+        | {f"a_{i}": f"y_{i}" for i in range(n_data)}
     )
-    datatable = DataTable.from_records([{"input": "_a_", "output": "_b_"}] * n_data)
+    datatable = DataTable.from_records([{"input": f"a_{i}", "output": f"b_{i}"} for i in range(n_data)])
     mutator = APO({"name": "test", "_child": "content"}, None, num_gradients=2, steps_per_gradient=1, num_rewrites=1)
     mutator.objective = MagicMock()
     mutator.objective.return_value = MagicMock(mistakes=list(range(n_data)))
-    result = await mutator.mutate(basic_template(), datatable, runner, n_mutations=2, random_state=42)
-    assert result[0].candidate.query({"name": "test", "_child": "content"}) == "Improved Prompt 0"
-    assert result[1].candidate.query({"name": "test", "_child": "content"}) == "<START>Improved Prompt 0</START>"
-    assert len(result) == 2
+    result = await mutator.mutate(short_template(), datatable, runner, n_mutations=3, random_state=42)
+
+    assert result[0].candidate.query({"name": "test", "_child": "content"}) == "Improved 2"
+    assert result[2].candidate.query({"name": "test", "_child": "content"}) == "Rewritten Improved 1"
+    assert len(result) == 3
 
 
 @pytest.mark.asyncio

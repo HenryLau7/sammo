@@ -461,6 +461,7 @@ class APO(Mutator):
             current_instructions=current_instructions,
             errors=example_formatter.format_batch(*zip(*sampled_errors)),
         )
+
         gradients = ExtractRegex(
             GenerateText(
                 Template(
@@ -508,11 +509,24 @@ class APO(Mutator):
                     randomness=0.7,
                 ),
             )
+            # print(rewritten_prompts)
+            # import pdb; pdb.set_trace()
             prompt_variants = Union(edited_prompts, rewritten_prompts)
+            # prompt_variants = rewritten_prompts
         else:
             prompt_variants = edited_prompts
 
+        # output = (await Output(prompt_variants).arun(runner)).outputs.raw_values[0].plot_call_trace() 
+        # print(output)
+        # import pickle
+        # with open('output.pkl', 'wb') as f:
+        #     pickle.dump(output, f)
+
+        # import pdb; pdb.set_trace()
         output = (await Output(prompt_variants).arun(runner)).outputs.raw_values[0].values_as_list()
+        # output_1 = (await Output(edited_prompts).arun(runner)).outputs.raw_values[0].values_as_list()
+
+
         res = rng.sample(output, min(n_mutations, len(output)))
 
         return [
@@ -697,10 +711,8 @@ class RepeatSegment(DropParameter):
 class DropExamples(DropParameter):
     pass
 
-
 class DropIntro(DropParameter):
     pass
-
 
 class ReplaceParameter(DropParameter):
     def __init__(self, path_descriptor: str | dict, choices: Any):

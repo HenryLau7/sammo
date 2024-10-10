@@ -251,8 +251,9 @@ class BeamSearch(Optimizer):
     def log(self, depth, items):
         for item in items:
             self._state["fit"].append({"iteration": depth, **item})
-        logger.info(f"Best at depth={depth}: {items[0]['objective']}")
+        # logger.info(f"Best at depth={depth}: {items[0]['objective']}")
 
+    # def log_info(s)
     async def afit_transform(
         self,
         dataset: DataTable,
@@ -285,6 +286,8 @@ class BeamSearch(Optimizer):
             update_pbar = colbar.get("mutate", total=len(active_set), show_time=False, position=1).update
 
             candidates_for_mutation = self._pick_candidates_for_mutation(active_set, rng)
+
+            print(f"\nCurrent depth:{d}, candidates_for_mutation length: {len(candidates_for_mutation)}\n")
             async with quattro.TaskGroup() as g:
                 for i, x in enumerate(candidates_for_mutation):
                     task = g.create_task(
@@ -313,26 +316,30 @@ class BeamSearch(Optimizer):
                     mutations = mutations[: self._max_evals - n_evals]
                     logger.warning(f"Max iterations reached. Truncating mutations to {len(mutations)}.")
 
-            if not mutations:
-                break
+            if mutations:
+                # break
 
-            # Evaluate candidates in parallel
-            scored_mutations = await self.evaluate(
-                [m.candidate for m in mutations], self._runner, self._objective, dataset, colbar
-            )
-            scored_mutations = [
-                {
-                    **m_scored,
-                    "prev_actions": [m.action] + m.parent["prev_actions"],
-                    "action": m.action,
-                }
-                for m, m_scored in zip(mutations, scored_mutations)
-            ]
-            self.log(d, scored_mutations)
-            if self._add_previous:
-                scored_mutations += active_set
+                # Evaluate candidates in parallel
+                scored_mutations = await self.evaluate(
+                    [m.candidate for m in mutations], self._runner, self._objective, dataset, colbar
+                )
+                scored_mutations = [
+                    {
+                        **m_scored,
+                        "prev_actions": [m.action] + m.parent["prev_actions"],
+                        "action": m.action,
+                    }
+                    for m, m_scored in zip(mutations, scored_mutations)
+                ]
+                self.log(d, scored_mutations)
+                if self._add_previous:
+                    scored_mutations += active_set
+                active_set = self._update_active_set(active_set, scored_mutations)
 
-            active_set = self._update_active_set(active_set, scored_mutations)
+                # self.log(d, active_set)
+                logger.info(f"Best at depth={d}: {active_set[0]['objective']}")
+            else:
+                print(f"Current depth: {d}, No candidates in this depth")
 
             depth_pbar.update()
 
@@ -345,6 +352,8 @@ class BeamSearch(Optimizer):
         return active_set
 
     def _update_active_set(self, active_set, scored_mutations):
+        # return self.argsort(scored_mutations)[: self._beam_width]
+        # active_set = list(set(active_set + scored_mutations))
         return self.argsort(scored_mutations)[: self._beam_width]
 
     def _candidates_at_depth(self, depth):
@@ -353,14 +362,22 @@ class BeamSearch(Optimizer):
     def _update_priors(self):
         posterior = copy.deepcopy(self._action_stats)
         for d in range(self._depth):
-            previous_best = self.argbest(self._candidates_at_depth(d - 1))
+            previous_best = None
+
+            temp_d = d-1
+            while (previous_best is None) and (temp_d >= -1):
+                previous_best = self.argbest(self._candidates_at_depth(temp_d))
+                temp_d -= 1
+
             for c in self._candidates_at_depth(d):
                 if self._maximize:
                     has_improved = c["objective"] > previous_best["objective"]
                 else:
                     has_improved = c["objective"] < previous_best["objective"]
-                posterior[c["action"]]["chosen"] += 1
-                posterior[c["action"]]["improved"] += int(has_improved)
+
+                if isinstance(c['action'], str):
+                    posterior[c["action"]]["chosen"] += 1
+                    posterior[c["action"]]["improved"] += int(has_improved)
         self._state["posteriors"] = posterior
 
     def _show_extra_report(self):
