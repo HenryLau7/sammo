@@ -36,12 +36,14 @@ class Optimizer:
 
     def __init__(
         self,
-        runner: sammo.base.Runner,
+        eval_runner: sammo.base.Runner,
+        opt_runner: sammo.base.Runner,
         search_space: Callable[[], Output] | None,
         objective: Callable[[DataTable, DataTable, bool], float],
         maximize: bool = False,
     ):
-        self._runner = runner
+        self._eval_runner = eval_runner
+        self._opt_runner = opt_runner
         self._maximize = maximize
         self._search_space = search_space
         self._objective = objective
@@ -74,7 +76,7 @@ class Optimizer:
     def score(self, dataset: DataTable, **kwargs) -> dict:
         best = self.best_prompt
         pbar = CompactProgressBars().get("inference", total=best.n_minibatches(dataset), show_rate=False)
-        y_pred = best.run(self._runner, dataset, progress_callback=pbar.update, **kwargs)
+        y_pred = best.run(self._eval_runner, dataset, progress_callback=pbar.update, **kwargs)
         record = self._candidate_record(best, dataset, y_pred)
         self._state["transform"].append(record)
         return record
@@ -148,7 +150,7 @@ class Optimizer:
             "validation": False,
             "posteriors": None,
         }
-        self._runner.reset_costs()
+        self._opt_runner.reset_costs()
         if hasattr(self, "_action_stats"):
             self._state["priors"] = copy.deepcopy(self._action_stats)
 
@@ -177,7 +179,7 @@ class Optimizer:
     async def evaluate(
         self,
         candidates: list[Output],
-        runner: sammo.base.Runner,
+        runner: sammo.base.Runner,        
         objective: Callable[[DataTable, DataTable], EvaluationScore],
         dataset: DataTable,
         colbar: CompactProgressBars | None = None,
@@ -207,7 +209,8 @@ class Optimizer:
     def validate(self, dataset: DataTable, k_best=5):
         k_best_candidates = sorted(self._state["fit"], key=lambda x: x["objective"], reverse=self._maximize)[:k_best]
         validation_scores = utils.sync(
-            self.evaluate([x["candidate"] for x in k_best_candidates], self._runner, self._objective, dataset)
+            # self.evaluate([x["candidate"] for x in k_best_candidates], self._runner, self._objective, dataset)
+            self.evaluate([x["candidate"] for x in k_best_candidates], self._eval_runner, self._objective, dataset)
         )
         for candidate, score in zip(k_best_candidates, validation_scores):
             candidate["validation"] = score
@@ -222,7 +225,8 @@ class BeamSearch(Optimizer):
 
     def __init__(
         self,
-        runner: sammo.base.Runner,
+        eval_runner: sammo.base.Runner,
+        opt_runner: sammo.base.Runner,
         mutator: Mutator,
         objective: Callable[[DataTable, DataTable, bool], float],
         maximize: bool = True,
@@ -234,7 +238,7 @@ class BeamSearch(Optimizer):
         priors: Literal["uniform"] | dict = "uniform",
         max_evals: int | None = None,
     ):
-        super().__init__(runner, None, objective, maximize)
+        super().__init__(eval_runner,opt_runner, None, objective, maximize)
         self._mutator = mutator
         self._beam_width = beam_width
         self._depth = depth
@@ -261,14 +265,15 @@ class BeamSearch(Optimizer):
         self._reset()
         self._mutator.update_priors(self._action_stats)
         self._mutator.objective = self._objective
-        initial_candidates = await self._mutator.get_initial_candidates(self._runner, self._n_initial_candidates)
+        initial_candidates = await self._mutator.get_initial_candidates(self._opt_runner, self._n_initial_candidates)
+        # opt_runner for initial candidates in APE
 
         colbar = CompactProgressBars()
         depth_pbar = colbar.get("search depth", total=self._depth, show_rate=False)
 
         active_set = await self.evaluate(
             [c.candidate for c in initial_candidates],
-            self._runner,
+            self._eval_runner,
             self._objective,
             dataset,
             colbar,
@@ -294,7 +299,8 @@ class BeamSearch(Optimizer):
                         self._mutator.mutate(
                             x["candidate"],
                             dataset,
-                            self._runner,
+                            self._eval_runner,
+                            self._opt_runner,
                             n_mutations=self._n_mutations,
                             random_state=d * self._beam_width * self._n_mutations + i,
                         )
@@ -317,11 +323,9 @@ class BeamSearch(Optimizer):
                     logger.warning(f"Max iterations reached. Truncating mutations to {len(mutations)}.")
 
             if mutations:
-                # break
-
                 # Evaluate candidates in parallel
                 scored_mutations = await self.evaluate(
-                    [m.candidate for m in mutations], self._runner, self._objective, dataset, colbar
+                    [m.candidate for m in mutations], self._eval_runner, self._objective, dataset, colbar
                 )
                 scored_mutations = [
                     {
@@ -340,12 +344,13 @@ class BeamSearch(Optimizer):
                 logger.info(f"Best at depth={d}: {active_set[0]['objective']}")
             else:
                 print(f"Current depth: {d}, No candidates in this depth")
+                # break
 
             depth_pbar.update()
 
         colbar.finalize()
         self._update_priors()
-        self._state["fit_costs"] = self._runner.costs.to_dict()
+        self._state["fit_costs"] = self._opt_runner.costs.to_dict()
         return self._updated_best()
 
     def _pick_candidates_for_mutation(self, active_set, rng):

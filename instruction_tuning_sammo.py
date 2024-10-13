@@ -65,8 +65,7 @@ MODEL_CONFIGS = {
         "full_id": "vllm",
         "equivalence_class": "vllm",
         "credentials": {
-            "api_key": "Mixtral",
-
+            "api_key": "token",
         },
         "rate_limit": 10,
         "timeout": 90,
@@ -105,7 +104,6 @@ def accuracy(y_true: DataTable, y_pred: DataTable) -> EvaluationScore:
         return x.lower().replace(" ", "")
 
     mistakes = list()
-
     y_in = y_true.inputs.raw_values
     y_true, y_pred = y_true.outputs.normalized_values(), y_pred.outputs.normalized_values(on_empty="")
 
@@ -130,20 +128,20 @@ class InstructionTuningSearchSpace:
         labels = self.dtrain.outputs.unique()
         instructions = MetaPrompt(
             [
-                Paragraph("Task Instruction:\n"),
+                # Paragraph("Task Instruction:\n"),
                 Paragraph(
                     search_op.one_of(
                         [
-                            self.dtrain.constants["instructions"],
+                            # self.dtrain.constants["instructions"],
                             "",
-                            "Find the best output label given the input.",
-                            self.dtrain.constants["instructions"] * 2,
+                            # "Find the best output label given the input.",
+                            # self.dtrain.constants["instructions"] * 2,
                         ]
                     ),
                     id="instructions",
                 ),
-                Paragraph("\n"),
-                Paragraph(f"Output Format:\nAnswer {' or '.join(labels)} as labels\n" if len(labels) <= 10 else ""),
+                # Paragraph("\n"),
+                # Paragraph(f"Output Format:\nAnswer {' or '.join(labels)} as labels\n" if len(labels) <= 10 else ""),
                 Paragraph("Examples:\n"),
                 Paragraph(FewshotExamples(self.dincontext[0])),
                 Paragraph("\n"),
@@ -172,26 +170,28 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
     model_config = MODEL_CONFIGS[llm]
     run_id = f"{task_id}_{model_config['equivalence_class'].replace('/', '_')}"
 
-    # runner = Vllm(
-    #     model_id=model_config["full_id"],
-    #     api_config=model_config["credentials"],
-    #     equivalence_class=model_config["equivalence_class"],
-    #     rate_limit=model_config["rate_limit"],
-    #     cache=sammo.store.PersistentDict(MAIN_FOLDER / f"{run_id}.cache.tsv"),
-    #     timeout=model_config["timeout"],
-    #     max_retries=50000,
-    #     max_context_window=model_config["max_context_window"],
-    # )
-
-    runner =AzureGPT4(
-        model_id=model_config["full_id"],
-        api_config=model_config["credentials"],
-        equivalence_class=model_config["equivalence_class"],
-        rate_limit=model_config["rate_limit"],
+    eval_config = MODEL_CONFIGS["vllm"]
+    eval_runner = Vllm(
+        model_id=eval_config["full_id"],
+        api_config=eval_config["credentials"],
+        equivalence_class=eval_config["equivalence_class"],
+        rate_limit=eval_config["rate_limit"],
         cache=sammo.store.PersistentDict(MAIN_FOLDER / f"{run_id}.cache.tsv"),
-        timeout=model_config["timeout"],
+        timeout=eval_config["timeout"],
         max_retries=50000,
-        max_context_window=model_config["max_context_window"],
+        max_context_window=eval_config["max_context_window"],
+    )
+
+    opt_config = MODEL_CONFIGS["AzureGPT4"]
+    opt_runner =AzureGPT4(
+        model_id=opt_config["full_id"],
+        api_config=opt_config["credentials"],
+        equivalence_class=opt_config["equivalence_class"],
+        rate_limit=opt_config["rate_limit"],
+        cache=sammo.store.PersistentDict(MAIN_FOLDER / f"{run_id}.cache.tsv"),
+        timeout=opt_config["timeout"],
+        max_retries=50000,
+        max_context_window=opt_config["max_context_window"],
     )
 
     all_tasks = {x["task_id"]: x for x in orjson.loads(pathlib.Path(DATA).read_bytes())}
@@ -223,7 +223,9 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
         )
     elif method == "apo":
         prompt_optimizer = BeamSearch(
-            runner,
+            eval_runner,
+            # opt_runner,
+            opt_runner,
             APO(
                 {"id": "instructions", "_child": "content"},
                 search_space,
@@ -270,7 +272,9 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
             sample_for_init_candidates=True,
         )
         prompt_optimizer = BeamSearch(
-            runner,
+            # runner,
+            eval_runner,
+            opt_runner,
             mutation_operators,
             accuracy,
             maximize=True,

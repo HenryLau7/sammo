@@ -422,7 +422,8 @@ class APO(Mutator):
         self,
         candidate: Output,
         data: DataTable,
-        runner: sammo.base.Runner,
+        eval_runner: sammo.base.Runner,
+        opt_runner: sammo.base.Runner,
         n_mutations: int = 1,
         random_state: int = 42,
     ) -> list[MutatedCandidate]:
@@ -435,7 +436,7 @@ class APO(Mutator):
         minibatch = data.sample(self._minibatch_size, seed=random_state) if self._minibatch_size else data
 
         # collect errors
-        minibatch_pred = await candidate.arun(runner, minibatch, progress_callback=False)
+        minibatch_pred = await candidate.arun(eval_runner, minibatch, progress_callback=False)
         wrong_examples = self.objective(minibatch, minibatch_pred).mistakes
 
         # if no errors are found, just return current candidate
@@ -467,13 +468,15 @@ class APO(Mutator):
                 Template(
                     "{{{intro}}}\n"
                     "Give {{{num_gradients}}} reasons why the prompt could have gotten these examples wrong."
-                    "Wrap each reason with <START> and </START>.",
+                    "Wrap each reason with <START> and <END>.",
                     intro=intro,
                     num_gradients=self._n_gradients,
                 )
             ),
-            r"<START>(.*?)</START>",
+            r"<START>(.*?)<END>",
         )
+
+        # import pdb;pdb.set_trace()
 
         # edit prompt - num_gradients calls
         edited_prompts = ForEach(
@@ -484,13 +487,13 @@ class APO(Mutator):
                     Template(
                         "{{{intro}}}\nBased on these examples the problem with this prompt is that:\n{{{gradient}}}"
                         "\n\nBased on the above information, I wrote {{{steps_per_gradient}}} different improved prompts. "
-                        "Each prompt is wrapped with <START> and </START>."
+                        "Each prompt is wrapped with <START> and <END>."
                         "\nThe {{{steps_per_gradient}}} new prompts are:",
                         intro=intro,
                         steps_per_gradient=self._n_steps_per_gradient,
                     )
                 ),
-                r"<START>\s*(.*?)</START>",
+                r"<START>\s*(.*?)<END>",
                 max_matches=self._n_steps_per_gradient,
             ),
         )
@@ -523,9 +526,8 @@ class APO(Mutator):
         #     pickle.dump(output, f)
 
         # import pdb; pdb.set_trace()
-        output = (await Output(prompt_variants).arun(runner)).outputs.raw_values[0].values_as_list()
+        output = (await Output(prompt_variants).arun(opt_runner)).outputs.raw_values[0].values_as_list()
         # output_1 = (await Output(edited_prompts).arun(runner)).outputs.raw_values[0].values_as_list()
-
 
         res = rng.sample(output, min(n_mutations, len(output)))
 
@@ -820,7 +822,12 @@ class BagOfMutators(Mutator):
         return np.argmax(rng.multinomial(1, p, size=n_samples), axis=1).tolist()
 
     async def mutate(
-        self, candidate: Output, data: DataTable, runner: Runner, n_mutations: int = 1, random_state=None
+        self, candidate: Output, data: DataTable, 
+        # runner: Runner, 
+        eval_runner: Runner,
+        opt_runner: Runner,
+        n_mutations: int = 1, 
+        random_state=None
     ) -> list[MutatedCandidate]:
         bag = [m for m in self._bag if m.applicable(candidate)]
         if not bag:

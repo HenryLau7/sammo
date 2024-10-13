@@ -351,7 +351,7 @@ class AzureGPT4(OpenAIChat):
         response = self.client.chat.completions.create(
             model="gpt-4",
             messages=messages,
-            max_tokens = 256,
+            # max_tokens = 1024,
             stop = None,
             temperature=0,
         )
@@ -379,25 +379,23 @@ class Vllm(OpenAIChat):
     def _post_init(self):
         self.client = OpenAI(
         base_url="http://localhost:8000/v1",
-        api_key="Mixtral",
+        api_key="token",
         )
 
     async def _call_backend(self, request: dict) -> dict:
         messages = request.get("messages", [])
-        
-        print(messages)
         response = self.client.chat.completions.create(
-            model="/home/aiscuser/Mixtral-8x7B-v0.1",
+            model="/home/aiscuser/Mistral-7B-v0.1",
             messages=messages,
-            max_tokens = 10,
-            stop = None,
+            max_tokens = 256,
+            stop = ["\n"],
             temperature=0,
         )
 
         response = response.model_dump_json()
         response = json.loads(response)
-        print(response)
         # raise ValueError("Test")
+        # import pdb; pdb.set_trace()
         return response
        
         # try:
