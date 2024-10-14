@@ -279,7 +279,7 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
             accuracy,
             maximize=True,
             depth=4,
-            mutations_per_beam=2,
+            mutations_per_beam=3,
             n_initial_candidates=4,
             beam_width=4,
             add_previous=True,

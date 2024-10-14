@@ -833,21 +833,31 @@ class BagOfMutators(Mutator):
         if not bag:
             return list()
         if not self.priors:
-            selected_mutators = random.Random(random_state).choices(bag, k=n_mutations)
+            # selected_mutators = random.Random(random_state).choices(bag, k=n_mutations)
+            # sampling with replacement
+            selected_mutators = bag
         else:
             action_stats = [self.priors.get(m.__class__.__name__, (0, 0)) for m in bag]
             idx = self.draw_map_beta_bernoulli(n_mutations, action_stats, seed=random_state)
             selected_mutators = [bag[i] for i in idx]
 
+        # print(selected_mutators)
+        # import pdb; pdb.set_trace()
         if n_mutations == 1:
-            return await selected_mutators[0].mutate(candidate, data, runner, random_state)
+            if selected_mutators[0].__class__.__name__ in ['APO']:
+                return await selected_mutators[0].mutate(candidate, data, eval_runner, opt_runner, n_mutations, random_state)
+            else:
+                return await selected_mutators[0].mutate(candidate, data, opt_runner, random_state)
         else:
             selected_mutators = collections.Counter(selected_mutators)
             tasks = list()
             async with quattro.TaskGroup() as tg:
                 for i, (mut, n_mut) in enumerate(selected_mutators.items()):
                     mut.objective = self._objective
-                    tasks.append(tg.create_task(mut.mutate(candidate, data, runner, n_mut, random_state + i)))
+                    if mut.__class__.__name__ in ['APO']:
+                        tasks.append(tg.create_task(mut.mutate(candidate, data, eval_runner, opt_runner, n_mut, random_state + i)))
+                    else:
+                        tasks.append(tg.create_task(mut.mutate(candidate, data, opt_runner, n_mut, random_state + i)))
             return sum([t.result() for t in tasks], [])
 
 
