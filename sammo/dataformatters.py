@@ -212,7 +212,9 @@ class MultiLabelFormatter(DataFormatter):
         return "\n".join(result)
 
     def get_extractor(self, child, on_error="raise"):
-        return ExtractRegex(child, "|".join(self._labels))
+        # return ExtractRegex(child, "|".join(self._labels))
+        return StripWhitespace(child)
+
 
 
 class QuestionAnswerFormatter(MultiLabelFormatter):
@@ -233,7 +235,9 @@ class QuestionAnswerFormatter(MultiLabelFormatter):
         return "\n".join(result)
 
     def get_extractor(self, child, on_error="raise"):
-        return ExtractRegex(child, r"^\s*A[^:]*:\s*([^\n]*)")
+        # return ExtractRegex(child, r"^\s*A[^:]*:\s*([^\n]*)")
+        return StripWhitespace(child)
+
 
 
 class PlainFormatter(DataFormatter):
@@ -286,8 +290,10 @@ class XMLDataFormatter(DataFormatter):
         return "\n".join(xmltodict.unparse(x, full_document=False, pretty=True) for x in finalized)
 
     def get_extractor(self, child, on_error="raise"):
-        return JSONPath(
-            ParseXML(child, parse_fragments="all", on_error=on_error),
-            f'$..{self._names["gold_label"]}',
-            flatten_lists=True,
-        )
+        # return JSONPath(
+        #     ParseXML(child, parse_fragments="all", on_error=on_error),
+        #     f'$..{self._names["gold_label"]}',
+        #     flatten_lists=True,
+        # )
+        return StripWhitespace(child)
+

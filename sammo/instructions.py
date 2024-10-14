@@ -109,7 +109,8 @@ class MetaPrompt(Renderer):
         return "\n".join(data).strip()
 
     def render_as_raw(self, data):
-        return "".join(data).strip()
+        # return "".join(data).strip()
+        return "".join(data).strip()+'\n'
 
         # import pdb;pdb.set_trace()
         # try:

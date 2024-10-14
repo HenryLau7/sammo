@@ -388,11 +388,13 @@ class Vllm(OpenAIChat):
             model="/home/aiscuser/Mistral-7B-v0.1",
             messages=messages,
             max_tokens = 256,
-            stop = ["\n"],
+            # stop = ["\n"],
             temperature=0,
         )
 
         response = response.model_dump_json()
+        with open("response.txt", "a") as f:
+            f.write(f"messages: {messages}\n\n\nresponse: {response}\n\n\n")
         response = json.loads(response)
         # raise ValueError("Test")
         # import pdb; pdb.set_trace()

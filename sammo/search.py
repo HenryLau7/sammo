@@ -37,7 +37,7 @@ class Optimizer:
     def __init__(
         self,
         eval_runner: sammo.base.Runner,
-        opt_runner: sammo.base.Runner,
+        opt_runner: sammo.base.Runner|None,
         search_space: Callable[[], Output] | None,
         objective: Callable[[DataTable, DataTable, bool], float],
         maximize: bool = False,
@@ -150,7 +150,9 @@ class Optimizer:
             "validation": False,
             "posteriors": None,
         }
-        self._opt_runner.reset_costs()
+        if self._opt_runner:
+            self._opt_runner.reset_costs()
+
         if hasattr(self, "_action_stats"):
             self._state["priors"] = copy.deepcopy(self._action_stats)
 
@@ -238,7 +240,7 @@ class BeamSearch(Optimizer):
         priors: Literal["uniform"] | dict = "uniform",
         max_evals: int | None = None,
     ):
-        super().__init__(eval_runner,opt_runner, None, objective, maximize)
+        super().__init__(eval_runner, opt_runner, None, objective, maximize)
         self._mutator = mutator
         self._beam_width = beam_width
         self._depth = depth
@@ -293,6 +295,7 @@ class BeamSearch(Optimizer):
             candidates_for_mutation = self._pick_candidates_for_mutation(active_set, rng)
 
             print(f"\nCurrent depth:{d}, candidates_for_mutation length: {len(candidates_for_mutation)}\n")
+
             async with quattro.TaskGroup() as g:
                 for i, x in enumerate(candidates_for_mutation):
                     task = g.create_task(
@@ -452,7 +455,7 @@ class EnumerativeSearch(Optimizer):
         mutate_from: Output | None = None,
         random_state: int = 42,
     ):
-        super().__init__(runner, search_space, objective, maximize)
+        super().__init__(runner, None, search_space, objective, maximize)
         self._algorithm = algorithm
         self._max_trials = max_candidates
         self._n_evals_parallel = n_evals_parallel
@@ -485,9 +488,9 @@ class EnumerativeSearch(Optimizer):
                     evolved = self._mutate_from
                     for mutator in candidate:
                         # todo: think of a better interface for this
-                        evolved = (await mutator.mutate(evolved, dataset, self._runner))[0].candidate
+                        evolved = (await mutator.mutate(evolved, dataset, self._eval_runner))[0].candidate
                     candidate = evolved
-                y_pred = await candidate.arun(self._runner, dataset, minibatch_progress_callback)
+                y_pred = await candidate.arun(self._eval_runner, dataset, minibatch_progress_callback)
                 candidate_progress.update()
                 return {
                     "iteration": iteration,
@@ -519,6 +522,6 @@ class EnumerativeSearch(Optimizer):
                 decisions = search_context.__closure__[0].cell_contents.to_dict("name_or_id", "literal")
                 running_tasks.append(tg.create_task(evaluate_point(current_point, i, decisions)))
         self._state["fit"] += [t.result() for t in running_tasks]
-        self._state["fit_costs"] = self._runner.costs.to_dict()
+        self._state["fit_costs"] = self._eval_runner.costs.to_dict()
         pbar.finalize()
         return self._updated_best()
