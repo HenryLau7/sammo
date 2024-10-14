@@ -1,0 +1,98 @@
+(Pdb) mutation
+Output(child=ExtractRegex(child=GenerateText(child=MetaPrompt(child=[0: MultiLabelFormatter(all_labels=[0: 'no', 1: 'yes'], orient='item'), 1: Paragraph(content='Examples:
+', id=None), 2: Paragraph(content=FewshotExamples(data=+-----------------------------------------------------------+----------+
+| input                                                     | output   |
++===========================================================+==========+
+| Speaker 1: 'You do this often?' Speaker 2: 'It's my first | no       |
+| time.'                                                    |          |
++-----------------------------------------------------------+----------+
+Constants: {'instructions': "Does Speaker 2's answer mean yes or no? "}, n_examples=None, name=None), id=None), 3: Paragraph(content='
+', id=None), 4: Paragraph(content=InputData(id_offset=0, name=None), id=None), 5: Paragraph(content='Output:', id=None)], render_as='raw', data_formatter=PlainFormatter(all_labels=[0: 'no', 1: 'yes'], orient='item'), name=None, seed=0), name=None, system_prompt=None, history=None, seed=0, randomness=0, max_tokens=None, json_mode=False, on_error='empty_result', runner=None), regex='no|yes', max_matches=None, strip_whitespaces=True), minibatch_size=1, on_error='empty_result')
+
+
+(Pdb) candidate
+Output(child=StripWhitespace(child=GenerateText(child=MetaPrompt(child=[0: Paragraph(content='', id='instructions'), 1: Paragraph(content='Examples:
+', id=None), 2: Paragraph(content=FewshotExamples(data=+-----------------------------------------------------------+----------+
+| input                                                     | output   |
++===========================================================+==========+
+| Speaker 1: 'You do this often?' Speaker 2: 'It's my first | no       |
+| time.'                                                    |          |
++-----------------------------------------------------------+----------+
+Constants: {'instructions': "Does Speaker 2's answer mean yes or no? "}, n_examples=None, name=None), id=None), 3: Paragraph(content='
+', id=None), 4: Paragraph(content=InputData(id_offset=0, name=None), id=None), 5: Paragraph(content='Output:', id=None)], render_as='raw', data_formatter=PlainFormatter(all_labels=[0: 'no', 1: 'yes'], orient='item'), name=None, seed=0), name=None, system_prompt=None, history=None, seed=0, randomness=0, max_tokens=None, json_mode=False, on_error='empty_result', runner=None), on_error='raise'), minibatch_size=1, on_error='empty_result')
+
+
+(Pdb) pg.clone(candidate, override={current_path: new_value})
+Output(child=StripWhitespace(child=GenerateText(child=MetaPrompt(child=[0: MultiLabelFormatter(all_labels=[0: 'no', 1: 'yes'], orient='item'), 1: Paragraph(content='Examples:
+', id=None), 2: Paragraph(content=FewshotExamples(data=+-----------------------------------------------------------+----------+
+| input                                                     | output   |
++===========================================================+==========+
+| Speaker 1: 'You do this often?' Speaker 2: 'It's my first | no       |
+| time.'                                                    |          |
++-----------------------------------------------------------+----------+
+Constants: {'instructions': "Does Speaker 2's answer mean yes or no? "}, n_examples=None, name=None), id=None), 3: Paragraph(content='
+', id=None), 4: Paragraph(content=InputData(id_offset=0, name=None), id=None), 5: Paragraph(content='Output:', id=None)], render_as='raw', data_formatter=PlainFormatter(all_labels=[0: 'no', 1: 'yes'], orient='item'), name=None, seed=0), name=None, system_prompt=None, history=None, seed=0, randomness=0, max_tokens=None, json_mode=False, on_error='empty_result', runner=None), on_error='raise'), minibatch_size=1, on_error='empty_result')
+
+
+(Pdb) mutation
+Output(child=StripWhitespace(child=GenerateText(child=MetaPrompt(child=[0: Paragraph(content='', id='instructions'), 1: Paragraph(content='Examples:
+', id=None), 2: Paragraph(content=FewshotExamples(data=+-----------------------------------------------------------+----------+
+| input                                                     | output   |
++===========================================================+==========+
+| Speaker 1: 'You do this often?' Speaker 2: 'It's my first | no       |
+| time.'                                                    |          |
++-----------------------------------------------------------+----------+
+Constants: {'instructions': "Does Speaker 2's answer mean yes or no? "}, n_examples=None, name=None), id=None), 3: Paragraph(content='
+', id=None), 4: Paragraph(content=InputData(id_offset=0, name=None), id=None), 5: Paragraph(content='Output:', id=None)], render_as='raw', data_formatter=PlainFormatter(all_labels=[0: 'no', 1: 'yes'], orient='item'), name=None, seed=0), name=None, system_prompt=None, history=None, seed=0, randomness=0, max_tokens=None, json_mode=False, on_error='empty_result', runner=None), on_error='raise'), minibatch_size=1, on_error='empty_result')
+
+
+
+(Pdb) candidate
+Output(child=JSONPath(child=ParseXML(child=GenerateText(child=MetaPrompt(child=[0: Paragraph(content='', id='instructions'), 1: Paragraph(content='Examples:
+', id=None), 2: Paragraph(content=FewshotExamples(data=+-----------------------------------------------------------+----------+
+| input                                                     | output   |
++===========================================================+==========+
+| Speaker 1: 'You do this often?' Speaker 2: 'It's my first | no       |
+| time.'                                                    |          |
++-----------------------------------------------------------+----------+
+Constants: {'instructions': "Does Speaker 2's answer mean yes or no? "}, n_examples=None, name=None), id=None), 3: Paragraph(content='
+', id=None), 4: Paragraph(content=InputData(id_offset=0, name=None), id=None), 5: Paragraph(content='Output:', id=None)], render_as='raw', data_formatter=XMLDataFormatter(names=None, flatten_1d_dicts=True, include_ids=True, orient='item', all_labels=[0: 'no', 1: 'yes'], attributes_processor=None), name=None, seed=0), name=None, system_prompt=None, history=None, seed=0, randomness=0, max_tokens=None, json_mode=False, on_error='empty_result', runner=None), parse_fragments='all', ignore_fragments_with_tags=(), on_error='raise', use_attributes_marker=False, lowercase_fieldnames=False), path='$..output', on_error='raise', max_results=None, flatten_lists=True), minibatch_size=1, on_error='empty_result')
+
+
+MultiLabel Formatter:
+'Examples:
+input: ["Speaker 1: \'You do this often?\' Speaker 2: \'It\'s my first time.\'"]
+output: no
+input: ["Speaker 1: \'Should we repay you?\' Speaker 2: \'There is no charge for awesomeness, or attractiveness.\'"]Output:'
+
+Plain
+"Examples:
+Input: Speaker 1: 'You do this often?' Speaker 2: 'It's my first time.'
+Output: no
+
+Input: Speaker 1: 'Should we repay you?' Speaker 2: 'There is no charge for awesomeness, or attractiveness.'
+Output:"
+
+QuestionAnswer:
+Examples:
+Q[0]: Speaker 1: 'You do this often?' Speaker 2: 'It's my first time.'
+A[0]: no
+
+Q[0]: Speaker 1: 'Should we repay you?' Speaker 2: 'There is no charge for awesomeness, or attractiveness.'
+Output:
+
+JSON Format
+'Examples:
+[{"id": 0, "input": "Speaker 1: \'You do this often?\' Speaker 2: \'It\'s my first time.\'", "output": "no"}]
+[{"id": 0, "input": "Speaker 1: \'Should we repay you?\' Speaker 2: \'There is no charge for awesomeness, or attractiveness.\'"}]Output:'
+
+XML Format ❌
+'Examples:
+<input id="0">
+\t<value>Speaker 1: \'You do this often?\' Speaker 2: \'It\'s my first time.\'</value>
+</input><output id="0">
+\t<value>no</value>
+</output>
+<input id="0">
+\t<value>Speaker 1: \'Should we repay you?\' Speaker 2: \'There is no charge for awesomeness, or attractiveness.\'</value>
+</input>Output:'
