@@ -752,9 +752,15 @@ class ChangeDataFormat(ReplaceParameter):
         current_path, new_values = self._sample_new_values(candidate, n_mutations, random_state)
         mutations = list()
         for new_value in new_values:
-            mutation = pg.clone(candidate, override={current_path: new_value})
+            # path = 'child.child.child.data_formatter' # For plain 
+            path = current_path.replace('child[0]','.data_formatter')
+            # import pdb;pdb.set_trace()
+            mutation = pg.clone(candidate, override={path: new_value})
             parser = new_value.get_extractor(mutation.query({"type": GenerateText}), on_error="empty_result")
             mutation.rebind({"child": parser})
+            # from copy import deepcopy
+            # mutation = deepcopy(candidate)
+            # mutation.data_formatter = new_value
             mutations.append(MutatedCandidate(self.__class__.__name__, mutation))
         return mutations
 

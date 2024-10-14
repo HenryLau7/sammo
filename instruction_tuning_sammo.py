@@ -10,6 +10,8 @@ from sammo.mutators import (
     SyntaxTreeMutator,
     APO,
     Paraphrase,
+    ChangeDataFormat,
+    DecreaseInContextExamples,
 )
 from sammo.runners import OpenAIChat, Vllm, AzureGPT4
 from sammo.throttler import AtMost
@@ -20,7 +22,7 @@ from sammo import search_op
 from sammo.data import DataTable
 from sammo.instructions import MetaPrompt, Paragraph, InputData, FewshotExamples
 from sammo.components import Output
-from sammo.dataformatters import PlainFormatter
+from sammo.dataformatters import PlainFormatter, JSONDataFormatter, XMLDataFormatter, QuestionAnswerFormatter, MultiLabelFormatter
 from sammo.search import EnumerativeSearch, BeamSearch, Optimizer
 from sammo.store import PersistentDict
 
@@ -101,10 +103,15 @@ def accuracy(y_true: DataTable, y_pred: DataTable) -> EvaluationScore:
     def normalize(x):
         if isinstance(x, dict):
             print(x)
+        if isinstance(x, list):
+            if len(x) == 0:
+                return ""
+            x = x[0]
         return x.lower().replace(" ", "")
 
     mistakes = list()
     y_in = y_true.inputs.raw_values
+    # import pdb; pdb.set_trace()
     y_true, y_pred = y_true.outputs.normalized_values(), y_pred.outputs.normalized_values(on_empty="")
 
     for i in range(len(y_true)):
@@ -121,6 +128,12 @@ class InstructionTuningSearchSpace:
     def __init__(self, dtrain, dincontext):
         self.dtrain = dtrain
         self.dincontext = dincontext
+        self.format_search_space = [
+            XMLDataFormatter(all_labels=self.dtrain.outputs.unique(), orient="item"), 
+            JSONDataFormatter(all_labels=self.dtrain.outputs.unique(), orient="item"), 
+            QuestionAnswerFormatter(all_labels=self.dtrain.outputs.unique(), orient="item"), 
+            MultiLabelFormatter(all_labels=self.dtrain.outputs.unique(), orient="item")
+            ]
 
     def __call__(self):
         example_formatter = PlainFormatter(all_labels=self.dtrain.outputs.unique(), orient="item")
@@ -149,7 +162,12 @@ class InstructionTuningSearchSpace:
                 Paragraph("Output:"),
             ],
             render_as="raw",
-            data_formatter=example_formatter,
+            # data_formatter=example_formatter,
+            # data_formatter=MultiLabelFormatter(all_labels=self.dtrain.outputs.unique(), orient="item"),
+            data_formatter=PlainFormatter(all_labels=self.dtrain.outputs.unique(), orient="item"),
+            # data_formatter=QuestionAnswerFormatter(all_labels=self.dtrain.outputs.unique(), orient="item"),
+            # data_formatter=JSONDataFormatter(all_labels=self.dtrain.outputs.unique(), orient="item"),
+            # data_formatter=XMLDataFormatter(all_labels=self.dtrain.outputs.unique(), orient="item"),
         )
 
         return Output(
@@ -260,17 +278,20 @@ def main(llm, task_id, method, uuid=None, confirmed=None, debug=False):
     elif method == "sammo":
         mutation_operators = BagOfMutators(
             search_space,
-            InduceInstructions({"id": "instructions"}, data["d_incontext"]),
-            APO(
-                {"id": "instructions", "_child": "content"},
-                None,
-                num_gradients=2,
-                steps_per_gradient=1,
-                num_rewrites=0,
-            ),
-            Paraphrase({"id": "instructions"}),
+            # InduceInstructions({"id": "instructions"}, data["d_incontext"]),
+            # APO(
+                # {"id": "instructions", "_child": "content"},
+                # None,
+                # num_gradients=2,
+                # steps_per_gradient=1,
+                # num_rewrites=0,
+            # ),
+            # Paraphrase({"id": "instructions"}),
+            ChangeDataFormat(
+                {"id": "instructions"},
+                choices=search_space.format_search_space),
             sample_for_init_candidates=True,
-        )
+            )
         prompt_optimizer = BeamSearch(
             # runner,
             eval_runner,

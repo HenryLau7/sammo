@@ -111,6 +111,13 @@ class MetaPrompt(Renderer):
     def render_as_raw(self, data):
         return "".join(data).strip()
 
+        # import pdb;pdb.set_trace()
+        # try:
+        # except Exception as e:
+        #     print(e)
+        #     import pdb
+        #     pdb.set_trace()
+
     async def _call(self, runner: Runner, context: dict, dynamic_context: frozendict | None) -> LLMResult:
         context["data_formatter"] = self._data_formatter
         if dynamic_context is None:
