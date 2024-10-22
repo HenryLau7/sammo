@@ -409,6 +409,7 @@ class Vllm(OpenAIChat):
         # ]
         response = self.client.chat.completions.create(
             model="/home/aiscuser/Mistral-7B-v0.1",
+            # model="/home/aiscuser/Meta-Llama-3-8B/",
             messages=messages,
             max_tokens = 256,
             # max_tokens = max_tokens,
