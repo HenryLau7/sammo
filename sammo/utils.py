@@ -232,6 +232,16 @@ def serialize_json(key) -> bytes:
     """Serialize json with orjson to invariant byte string."""
     return orjson.dumps(key, option=orjson.OPT_SORT_KEYS)
 
+def convert_seconds(seconds):
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+    
+    formatted_hours = f"{hours:.0f}"
+    formatted_minutes = f"{minutes:.0f}"
+    formatted_secs = f"{secs:.0f}"
+    
+    return f"{formatted_hours} H {formatted_minutes} MIN {formatted_secs} S"
 
 MAIN_PATH = get_main_script_path()
 """Path of the main script if not interactive, otherwise working dir."""

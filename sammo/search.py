@@ -8,6 +8,7 @@ import logging
 import random
 from collections.abc import Callable
 import datetime
+import time
 from pathlib import Path
 import quattro
 
@@ -67,11 +68,12 @@ class Optimizer:
             search_costs += self.fit_costs[k]
         return search_costs * len(self.best["predictions"]) / (improvement or 1)
 
-    def fit(self, dataset: DataTable):
-        self.fit_transform(dataset)
+    def fit(self, train_set: DataTable, valid_set: DataTable):
+        # self.fit_transform(dataset)
+        self.fit_transform(train_set, valid_set)
 
-    def fit_transform(self, dataset: DataTable) -> DataTable:
-        return utils.sync(self.afit_transform(dataset))
+    def fit_transform(self, train_set: DataTable, valid_set: DataTable) -> DataTable:
+        return utils.sync(self.afit_transform(train_set, valid_set))
 
     def score(self, dataset: DataTable, **kwargs) -> dict:
         best = self.best_prompt
@@ -211,7 +213,6 @@ class Optimizer:
     def validate(self, dataset: DataTable, k_best=5):
         k_best_candidates = sorted(self._state["fit"], key=lambda x: x["objective"], reverse=self._maximize)[:k_best]
         validation_scores = utils.sync(
-            # self.evaluate([x["candidate"] for x in k_best_candidates], self._runner, self._objective, dataset)
             self.evaluate([x["candidate"] for x in k_best_candidates], self._eval_runner, self._objective, dataset)
         )
         for candidate, score in zip(k_best_candidates, validation_scores):
@@ -262,7 +263,9 @@ class BeamSearch(Optimizer):
     # def log_info(s)
     async def afit_transform(
         self,
-        dataset: DataTable,
+        # dataset: DataTable,
+        train_set: DataTable,
+        valid_set: DataTable,
     ) -> DataTable:
         self._reset()
         self._mutator.update_priors(self._action_stats)
@@ -277,7 +280,7 @@ class BeamSearch(Optimizer):
             [c.candidate for c in initial_candidates],
             self._eval_runner,
             self._objective,
-            dataset,
+            valid_set,
             colbar,
         )
         active_set = self.argsort(
@@ -288,6 +291,9 @@ class BeamSearch(Optimizer):
         rng = random.Random(42)
 
         for d in range(self._depth):
+            print(f"\nCurrent depth: {d}\n")
+            # define current time
+            start = time.time()
             # Mutate candidates in parallel
             mutation_tasks = list()
             update_pbar = colbar.get("mutate", total=len(active_set), show_time=False, position=1).update
@@ -301,7 +307,8 @@ class BeamSearch(Optimizer):
                     task = g.create_task(
                         self._mutator.mutate(
                             x["candidate"],
-                            dataset,
+                            # dataset,
+                            train_set,
                             self._eval_runner,
                             self._opt_runner,
                             n_mutations=self._n_mutations,
@@ -328,8 +335,9 @@ class BeamSearch(Optimizer):
             if mutations:
                 # Evaluate candidates in parallel
                 scored_mutations = await self.evaluate(
-                    [m.candidate for m in mutations], self._eval_runner, self._objective, dataset, colbar
+                    [m.candidate for m in mutations], self._eval_runner, self._objective, valid_set, colbar
                 )
+
                 scored_mutations = [
                     {
                         **m_scored,
@@ -350,6 +358,10 @@ class BeamSearch(Optimizer):
                 # break
 
             depth_pbar.update()
+            # define end time
+            end = time.time()
+            # print the used time in hours, minutes and seconds
+            print(f"\nDepth {d}: Time used {utils.convert_seconds(end - start)}\n")
 
         colbar.finalize()
         self._update_priors()
@@ -464,7 +476,9 @@ class EnumerativeSearch(Optimizer):
 
     async def afit_transform(
         self,
-        dataset: DataTable,
+        # dataset: DataTable,
+        train_set: DataTable,
+        valid_set: DataTable,
     ) -> DataTable:
         self._reset()
         traced_search_space = pg.hyper.trace(self._search_space)
@@ -488,14 +502,14 @@ class EnumerativeSearch(Optimizer):
                     evolved = self._mutate_from
                     for mutator in candidate:
                         # todo: think of a better interface for this
-                        evolved = (await mutator.mutate(evolved, dataset, self._eval_runner))[0].candidate
+                        evolved = (await mutator.mutate(evolved, valid_set, self._eval_runner))[0].candidate
                     candidate = evolved
-                y_pred = await candidate.arun(self._eval_runner, dataset, minibatch_progress_callback)
+                y_pred = await candidate.arun(self._eval_runner, valid_set, minibatch_progress_callback)
                 candidate_progress.update()
                 return {
                     "iteration": iteration,
                     "action": action,
-                    **self._candidate_record(candidate, dataset, y_pred),
+                    **self._candidate_record(candidate, valid_set, y_pred),
                 }
 
         running_tasks = list()
@@ -512,7 +526,7 @@ class EnumerativeSearch(Optimizer):
                     current_point = self._search_space()
                 # todo: fix this in case of mutators that change the number of minibatches
                 total_minibatches += (current_point if self._mutate_from is None else self._mutate_from).n_minibatches(
-                    dataset
+                    valid_set
                 )
                 minibatch_progress_callback = pbar.get(
                     "minibatches (total)",

@@ -374,26 +374,51 @@ class AzureGPT4(OpenAIChat):
 
 class Vllm(OpenAIChat):
     BASE_URL = "http://localhost:8000/v1"
+    # BASE_URL = "http://localhost:8003/v1"
     SUFFIX = ""
 
     def _post_init(self):
         self.client = OpenAI(
         base_url="http://localhost:8000/v1",
+        # base_url="http://localhost:8003/v1",
         api_key="token",
         )
 
     async def _call_backend(self, request: dict) -> dict:
         messages = request.get("messages", [])
+        # max_tokens = 512
+        # stop = [
+        #     "</s>",
+        #     "Question:",
+        #     "Question",
+        #     "USER:",
+        #     "USER",
+        #     "ASSISTANT:",
+        #     "ASSISTANT",
+        #     "Answer:",
+        #     "Answer",
+        #     "Instruction:",
+        #     "Instruction",
+        #     "Response:",
+        #     "Response",
+        #     "#",
+        #     "# ",
+        #     "###",
+        #     "### ",
+        #     "\n\n\n",
+        # ]
         response = self.client.chat.completions.create(
             model="/home/aiscuser/Mistral-7B-v0.1",
             messages=messages,
             max_tokens = 256,
-            # stop = ["\n"],
+            # max_tokens = max_tokens,
+            stop = '\n',
+            # stop = stop,
             temperature=0,
         )
 
         response = response.model_dump_json()
-        with open("response.txt", "a") as f:
+        with open("response.txt", "w") as f:
             f.write(f"messages: {messages}\n\n\nresponse: {response}\n\n\n")
         response = json.loads(response)
         # raise ValueError("Test")
@@ -601,7 +626,6 @@ class GeminiChat(RestRunner):
             costs=Costs(usage["promptTokenCount"], usage["candidatesTokenCount"]),
             request_text=request_text,
         )
-
 
 class AnthropicChat(RestRunner):
     BASE_URL = "https://api.anthropic.com/v1/messages"
